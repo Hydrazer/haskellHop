@@ -1,20 +1,4 @@
 
-const observer = new MutationObserver((mutations, obs) => {
-  var canvas = document.getElementsByTagName("canvas")[0];
-  if (canvas) {
-    console.log("nice");
-    canvas.focus();
-    obs.disconnect();
-    return;
-  }
-});
-
-observer.observe(document, {
-  childList: true,
-  subtree: true
-});
-
-
 const lAudioContext = (typeof AudioContext !== 'undefined' ? AudioContext : (typeof webkitAudioContext !== 'undefined' ? webkitAudioContext : undefined));
 let wasm;
 
