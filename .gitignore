@@ -12,3 +12,6 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdbd
+
+out/haskell_hop.d.ts
+out/haskell_hop_bg.wasm.d.ts
