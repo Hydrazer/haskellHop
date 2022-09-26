@@ -9,6 +9,19 @@ const WINDOW_WIDTH: f32 = 1000.0;
 const GRAVITY: f32 = 9.81;
 const FRICTION: f32 = 0.7;
 
+#[derive(PartialEq)]
+enum ScoreState {
+  NICE,
+  DEFAULT,
+}
+
+impl Default for ScoreState {
+  fn default() -> ScoreState {
+    ScoreState::DEFAULT
+  }
+}
+
+#[derive(PartialEq, Eq)]
 enum Dir {
   LEFT,
   RIGHT,
@@ -20,16 +33,18 @@ impl Default for Dir {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq)]
 struct Player {
   entity: Option<Entity>,
   i: f32,
   j: f32,
   vel_i: f32,
   vel_j: f32,
-  dir: Dir,
   scale: f32,
   jump_count: usize,
+  dir: Dir,
+  score_state: ScoreState,
+  time_save: usize,
 }
 
 #[derive(Component)]
@@ -58,6 +73,7 @@ fn main() {
 }
 
 fn player_move(
+  time: Res<Time>,
   keyboard_input: Res<Input<KeyCode>>,
   mut player: ResMut<Player>,
   mut transform_q: Query<&mut Transform>,
@@ -94,6 +110,15 @@ fn player_move(
     player.vel_i -= GRAVITY / 10.0;
   }
 
+  if player.jump_count == 69 {
+    if player.score_state != ScoreState::NICE {
+      player.score_state = ScoreState::NICE;
+      player.time_save = time.time_since_startup().as_millis() as usize;
+    }
+  } else if time.time_since_startup().as_millis() as usize - player.time_save >= 1000 {
+    player.score_state = ScoreState::DEFAULT;
+  }
+
   *transform_q.get_mut(player.entity.unwrap()).unwrap() = Transform {
     translation: Vec3::new(player.j, player.i, 0.0),
     scale: Vec3::new(player.scale, player.scale, 0.0),
@@ -125,7 +150,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut player: Res
 
   commands
     .spawn_bundle(Text2dBundle {
-      text: Text::from_section(player.jump_count.to_string().as_str(), text_style.clone()).with_alignment(text_alignment),
+      text: Text::from_section(player.jump_count.to_string().as_str(), text_style.clone())
+        .with_alignment(text_alignment),
       ..default()
     })
     .insert(ScoreRotate);
@@ -157,14 +183,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut player: Res
 }
 
 fn score_update(
-  time: Res<Time>,
   mut transform_q: Query<&mut Transform, (With<Text>, With<ScoreRotate>)>,
   mut text_q: Query<&mut Text>,
   mut player: ResMut<Player>,
 ) {
-
   for mut text in &mut text_q {
-      text.sections[0].value = player.jump_count.to_string();
+    match player.score_state {
+      ScoreState::DEFAULT => {
+        text.sections[0].value = player.jump_count.to_string();
+        text.sections[0].style.color = Color::WHITE;
+      }
+      ScoreState::NICE => {
+        text.sections[0].value = "haha funny number".to_string();
+        text.sections[0].style.color = Color::CYAN;
+      }
+    }
   }
 
   for mut transform in &mut transform_q {
