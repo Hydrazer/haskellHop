@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use bevy::window::PresentMode;
 use bevy::time::FixedTimestep;
+use bevy::window::PresentMode;
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.7, 0.3, 0.3);
 const PLAYER_SCALE: f32 = 0.15;
@@ -10,14 +10,14 @@ const GRAVITY: f32 = 9.81;
 const FRICTION: f32 = 0.7;
 
 enum Dir {
-    LEFT,
-    RIGHT,
+  LEFT,
+  RIGHT,
 }
 
 impl Default for Dir {
-    fn default() -> Dir {
-        Dir::RIGHT
-    }
+  fn default() -> Dir {
+    Dir::RIGHT
+  }
 }
 
 #[derive(Default)]
@@ -29,8 +29,11 @@ struct Player {
   vel_j: f32,
   dir: Dir,
   scale: f32,
+  jump_count: usize,
 }
 
+#[derive(Component)]
+struct ScoreRotate;
 
 fn main() {
   App::new()
@@ -44,6 +47,7 @@ fn main() {
     })
     .add_plugins(DefaultPlugins)
     .add_startup_system(setup)
+    .add_system(score_update)
     .add_system(player_move)
     /* .add_stage_after(stage::UPDATE, "fixed_update", Schedule::default()
         .with_run_criteria(FixedTimestep::steps_per_second(20.0))
@@ -59,7 +63,10 @@ fn player_move(
   mut transform_q: Query<&mut Transform>,
   mut sprite_q: Query<&mut Sprite>,
 ) {
-  if keyboard_input.pressed(KeyCode::W) && player.vel_i == 0.0 {
+  if (keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Space)) &&
+    player.vel_i == 0.0
+  {
+    player.jump_count += 1;
     player.vel_i = 10.0;
   }
 
@@ -90,22 +97,38 @@ fn player_move(
   *transform_q.get_mut(player.entity.unwrap()).unwrap() = Transform {
     translation: Vec3::new(player.j, player.i, 0.0),
     scale: Vec3::new(player.scale, player.scale, 0.0),
-    
+
     ..default()
   };
 
   *sprite_q.get_mut(player.entity.unwrap()).unwrap() = Sprite {
-     flip_x: match player.dir {
-         Dir::LEFT => true,
-         Dir::RIGHT => false,
-     },
-     flip_y: false,
-     ..default()
+    flip_x: match player.dir {
+      Dir::LEFT => true,
+      Dir::RIGHT => false,
+    },
+    flip_y: false,
+    ..default()
   };
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut player: ResMut<Player>) {
   commands.spawn_bundle(Camera2dBundle::default());
+  let font = asset_server.load("fonts/Monocraft.ttf");
+  let text_style = TextStyle {
+    font,
+    font_size: 60.0,
+    color: Color::WHITE,
+  };
+  let text_alignment = TextAlignment::CENTER;
+
+  player.jump_count = 0;
+
+  commands
+    .spawn_bundle(Text2dBundle {
+      text: Text::from_section(player.jump_count.to_string().as_str(), text_style.clone()).with_alignment(text_alignment),
+      ..default()
+    })
+    .insert(ScoreRotate);
 
   player.i = -(WINDOW_HEIGHT / 2.0) + (WINDOW_HEIGHT * 0.1);
   player.j = -(WINDOW_WIDTH / 2.0) + (WINDOW_HEIGHT * 0.1);
@@ -123,12 +146,28 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut player: Res
           ..default()
         },
         sprite: Sprite {
-            flip_x: true,
-            flip_y: false,
-            ..default()
+          flip_x: true,
+          flip_y: false,
+          ..default()
         },
         ..default()
       })
       .id(),
   );
+}
+
+fn score_update(
+  time: Res<Time>,
+  mut transform_q: Query<&mut Transform, (With<Text>, With<ScoreRotate>)>,
+  mut text_q: Query<&mut Text>,
+  mut player: ResMut<Player>,
+) {
+
+  for mut text in &mut text_q {
+      text.sections[0].value = player.jump_count.to_string();
+  }
+
+  for mut transform in &mut transform_q {
+    transform.rotate_z(5_f32.to_radians());
+  }
 }
