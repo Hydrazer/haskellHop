@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy::time::FixedTimestep;
+// use bevy::prelude::stage::*;
+use bevy::time::{FixedTimestep, FixedTimesteps};
 use bevy::window::PresentMode;
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.7, 0.3, 0.3);
@@ -62,12 +63,22 @@ fn main() {
     })
     .add_plugins(DefaultPlugins)
     .add_startup_system(setup)
-    .add_system(score_update)
-    .add_system(player_move)
-    /* .add_stage_after(stage::UPDATE, "fixed_update", Schedule::default()
-        .with_run_criteria(FixedTimestep::steps_per_second(20.0))
-        .with_system(player_move)
-    ) */
+    .add_stage_after(
+      CoreStage::Update,
+      "player_move",
+      SystemStage::parallel()
+        .with_run_criteria(FixedTimestep::step(1.0 / 60.0))
+        .with_system(player_move),
+    )
+    .add_stage_after(
+      CoreStage::Update,
+      "score_update",
+      SystemStage::parallel()
+        .with_run_criteria(FixedTimestep::step(1.0 / 60.0))
+        .with_system(score_update),
+    )
+    /* .add_system(player_move)
+    .add_system(score_update) */
     .insert_resource(ClearColor(BACKGROUND_COLOR))
     .run();
 }
@@ -79,6 +90,8 @@ fn player_move(
   mut transform_q: Query<&mut Transform>,
   mut sprite_q: Query<&mut Sprite>,
 ) {
+  // let td = time.delta().as_millis() as f32 / 60.0;
+
   if (keyboard_input.pressed(KeyCode::W) || keyboard_input.pressed(KeyCode::Space)) &&
     player.vel_i == 0.0
   {
@@ -183,10 +196,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut player: Res
 }
 
 fn score_update(
+  time: Res<Time>,
   mut transform_q: Query<&mut Transform, (With<Text>, With<ScoreRotate>)>,
   mut text_q: Query<&mut Text>,
   mut player: ResMut<Player>,
 ) {
+  // let td = time.delta().as_millis() as f32 / 60.0;
   for mut text in &mut text_q {
     match player.score_state {
       ScoreState::DEFAULT => {
