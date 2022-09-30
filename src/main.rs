@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::sprite::collide_aabb::collide;
 use itertools::Itertools;
 use rand::{prelude::SliceRandom, thread_rng, Rng};
 // use bevy::prelude::stage::*;
@@ -11,6 +12,7 @@ const WINDOW_HEIGHT: f32 = 500.0;
 const WINDOW_WIDTH: f32 = 1000.0;
 const GRAVITY: f32 = 9.81;
 const FRICTION: f32 = 0.7;
+const CORRUPT_JUMP: usize = 80;
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -55,6 +57,7 @@ struct Player {
   scale: f32,
   jump_count: usize,
   dir: Dir,
+  size: Vec2,
   // state: State,
 }
 
@@ -66,6 +69,7 @@ struct Obj {
   vel_i: f32,
   vel_j: f32,
   scale: f32,
+  size: Vec2,
 }
 
 #[derive(Default, PartialEq)]
@@ -152,7 +156,7 @@ fn texter_state(
     texter.state = State::DEFAULT;
   }
 
-  if player.jump_count >= 80 && texter.state == State::DEFAULT {
+  if player.jump_count >= CORRUPT_JUMP && texter.state == State::DEFAULT {
     texter.state = State::CORRUPT_A;
     texter.time_save = time.time_since_startup().as_millis() as usize;
   }
@@ -160,10 +164,10 @@ fn texter_state(
 
 fn java_move(
   mut java: ResMut<Java>,
+  mut player: ResMut<Player>,
   mut texter: ResMut<Texter>,
   time: Res<Time>,
   mut transform_q: Query<&mut Transform>,
-
   mut commands: Commands,
   asset_server: Res<AssetServer>,
 ) {
@@ -178,6 +182,7 @@ fn java_move(
       let obj_j = java.j;
 
       let obj = Obj {
+        size: Vec2::new(0.0, 0.0),
         i: obj_i,
         j: obj_j,
         vel_i: -1.0,
@@ -207,7 +212,30 @@ fn java_move(
 
     for obj in &mut java.obj_vec {
       if transform_q.get_mut(obj.entity.unwrap()).is_ok() {
+        let obj_tl = transform_q
+            .get_mut(obj.entity.unwrap())
+            .unwrap()
+            .translation;
+        let player_tl = transform_q
+            .get_mut(player.entity.unwrap())
+            .unwrap()
+            .translation;
+        match collide(
+          player_tl,
+          player.size,
+          obj_tl,
+          obj.size,
+        ) {
+          Some(_col) => {
+            obj.vel_i = 15.0;
+            obj.vel_j = (obj_tl.x - player_tl.x) / 10.0;
+          }
+          None => {}
+        };
+
         obj.i += obj.vel_i;
+        obj.j += obj.vel_j;
+        obj.vel_i -= GRAVITY / 40.0;
         *transform_q.get_mut(obj.entity.unwrap()).unwrap() = Transform {
           translation: Vec3::new(obj.j, obj.i, 0.0),
           scale: Vec3::new(obj.scale, obj.scale, 0.0),
@@ -271,7 +299,7 @@ fn player_move(
     player.vel_j = player.vel_j * FRICTION;
   } else {
     player.i = player.i + player.vel_i;
-    player.vel_i -= GRAVITY / 10.0;
+    player.vel_i -= GRAVITY / 15.0;
   }
 
   *transform_q.get_mut(player.entity.unwrap()).unwrap() = Transform {
@@ -307,6 +335,7 @@ fn setup(
   let text_alignment = TextAlignment::CENTER;
 
   player.jump_count = 0;
+  player.size = Vec2::new(100.0, 100.0);
 
   commands
     .spawn_bundle(Text2dBundle {
@@ -396,7 +425,6 @@ fn score_update(
 
         let tc = text.sections[0].style.color;
         text.sections[0].style.color = Color::rgba(tc.r(), tc.g(), tc.b(), tc.a() * 0.98);
-        println!("{}", tc.a());
 
         if java.entity.is_none() {
           for mut transform in &mut transform_q {

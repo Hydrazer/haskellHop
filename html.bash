@@ -21,3 +21,4 @@ observer.observe(document, {
 
 
 echo "$s" > 'out/haskell_hop.js'
+
